@@ -18,8 +18,6 @@ export enum BackendRoute {
   TASK = '/kanban/:boardId/tasks/:taskId',
   TASK_MOVE = '/kanban/:boardId/tasks/:taskId/move',
 }
-// AVAILABLE_COUNTRIES = '/countries/available',
-// COUNTRY_INFO = '/countries',
 
 export enum QueryKey {
   BOARDS = 'BOARDS',

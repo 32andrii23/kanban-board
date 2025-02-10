@@ -1,6 +1,6 @@
 import { BackendRoute, QueryKey } from '@/constants';
 import { apiService } from '@/services/api.service';
-import { TaskDto } from '@/types';
+import { BoardDto, ColumnDto, TaskDto } from '@/types';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 export const useTask = (boardId?: string, taskId?: string) => {
@@ -77,7 +77,66 @@ export const useTask = (boardId?: string, taskId?: string) => {
     return response.data;
   };
 
-  const moveTaskMutation = useMutation({ mutationFn: moveTask });
+  // moveTaskMutation with optimistic update
+  const moveTaskMutation = useMutation({
+    mutationFn: moveTask,
+    onMutate: async ({ taskId, newColumnId, newPosition }) => {
+      await queryClient.cancelQueries({ queryKey: [QueryKey.BOARD, boardId] });
+
+      const previousBoard = queryClient.getQueryData<BoardDto>([
+        QueryKey.BOARD,
+        boardId,
+      ]);
+
+      if (!previousBoard) return { previousBoard };
+
+      const updatedBoard = JSON.parse(JSON.stringify(previousBoard));
+
+      let movedTask: TaskDto | undefined;
+
+      updatedBoard.columns = updatedBoard.columns.map((column: ColumnDto) => {
+        if (column.tasks.some((task) => task.id === taskId)) {
+          movedTask = column.tasks.find((task) => task.id === taskId);
+          return {
+            ...column,
+            tasks: column.tasks.filter((task) => task.id !== taskId),
+          };
+        }
+        return column;
+      });
+
+      if (!movedTask) return { previousBoard };
+
+      updatedBoard.columns = updatedBoard.columns.map((column: ColumnDto) => {
+        if (column.id === newColumnId) {
+          return {
+            ...column,
+            tasks: [
+              ...column.tasks.slice(0, newPosition),
+              movedTask!,
+              ...column.tasks.slice(newPosition),
+            ],
+          };
+        }
+        return column;
+      });
+
+      queryClient.setQueryData([QueryKey.BOARD, boardId], updatedBoard);
+
+      return { previousBoard };
+    },
+    onError: (_err, _newTask, context) => {
+      if (context?.previousBoard) {
+        queryClient.setQueryData(
+          [QueryKey.BOARD, boardId],
+          context.previousBoard,
+        );
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKey.BOARD, boardId] });
+    },
+  });
 
   return {
     createTask: createTaskMutation.mutate,

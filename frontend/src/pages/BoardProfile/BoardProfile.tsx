@@ -41,7 +41,6 @@ export const BoardProfile = () => {
   const handleDragOver = useCallback(
     (event: DragOverEvent) => {
       const { active, over } = event;
-
       if (!over) return;
 
       if (active.id !== over.id) {
